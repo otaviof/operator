@@ -46,7 +46,7 @@ If pushing to an external image registry, you may need to provide credentials to
 
 ```bash
 $ make ko
-$ ko login <IMAGE_REGISTRY> -u <USERNAME> -p <PASSWORD>
+$ ko auth login <IMAGE_REGISTRY> -u <USERNAME> -p <PASSWORD>
 ```
 
 Next, build the operator image as specified above, and push to a container registry that can be accessed by the cluster:
