@@ -6,6 +6,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	mfc "github.com/manifestival/controller-runtime-client"
@@ -23,8 +24,8 @@ import (
 	"github.com/shipwright-io/operator/api/v1alpha1"
 )
 
-// finalizerAnnotation annotation string appended on finalizer slice.
-const finalizerAnnotation = "finalizer.operator.shipwright.io"
+// FinalizerAnnotation annotation string appended on finalizer slice.
+const FinalizerAnnotation = "finalizer.operator.shipwright.io"
 
 // ShipwrightBuildReconciler reconciles a ShipwrightBuild object
 type ShipwrightBuildReconciler struct {
@@ -40,10 +41,10 @@ func (r *ShipwrightBuildReconciler) setFinalizer(
 	ctx context.Context,
 	b *v1alpha1.ShipwrightBuild,
 ) error {
-	if contains(b.GetFinalizers(), finalizerAnnotation) {
+	if contains(b.GetFinalizers(), FinalizerAnnotation) {
 		return nil
 	}
-	b.SetFinalizers(append(b.GetFinalizers(), finalizerAnnotation))
+	b.SetFinalizers(append(b.GetFinalizers(), FinalizerAnnotation))
 	return r.Update(ctx, b, &client.UpdateOptions{})
 }
 
@@ -54,7 +55,7 @@ func (r *ShipwrightBuildReconciler) unsetFinalizer(
 ) error {
 	finalizers := []string{}
 	for _, f := range b.GetFinalizers() {
-		if f == finalizerAnnotation {
+		if f == FinalizerAnnotation {
 			continue
 		}
 		finalizers = append(finalizers, f)
@@ -105,7 +106,7 @@ func (r *ShipwrightBuildReconciler) Reconcile(
 	// finalizers, and thus the ShipwrightBuild is removed from cache.
 	if !b.GetDeletionTimestamp().IsZero() {
 		logger.Info("DeletionTimestamp is set...")
-		if !contains(b.GetFinalizers(), finalizerAnnotation) {
+		if !contains(b.GetFinalizers(), FinalizerAnnotation) {
 			logger.Info("Finalizers removed, deletion of manifests completed!")
 			return NoRequeue()
 		}
@@ -132,6 +133,7 @@ func (r *ShipwrightBuildReconciler) Reconcile(
 		return RequeueWithError(err)
 	}
 	if err := r.setFinalizer(ctx, b); err != nil {
+		logger.Info(fmt.Sprintf("%#v", b))
 		logger.Error(err, "Setting the finalizer")
 		return RequeueWithError(err)
 	}

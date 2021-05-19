@@ -82,7 +82,7 @@ func TestShipwrightBuildReconciler_Finalizers(t *testing.T) {
 		err := r.setFinalizer(context.TODO(), b)
 
 		g.Expect(err).To(o.BeNil())
-		g.Expect(b.GetFinalizers()).To(o.Equal([]string{finalizerAnnotation}))
+		g.Expect(b.GetFinalizers()).To(o.Equal([]string{FinalizerAnnotation}))
 	})
 
 	// removing previously added finalizer entry, making sure slice it's empty afterwards
