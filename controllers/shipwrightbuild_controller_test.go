@@ -8,8 +8,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/go-logr/logr"
 	"github.com/shipwright-io/operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +21,12 @@ import (
 
 	o "github.com/onsi/gomega"
 )
+
+func init() {
+	// exporting the environment variable which points Manifestival to the release.yaml file,
+	// containing all resources managed by it
+	_ = os.Setenv("KO_DATA_PATH", "../cmd/operator/kodata")
+}
 
 // bootstrapShipwrightBuildReconciler start up a new instance of ShipwrightBuildReconciler which is
 // ready to interact with Manifestival, returning the Manifestival instance and the client.
@@ -35,14 +41,29 @@ func bootstrapShipwrightBuildReconciler(
 	s.AddKnownTypes(appsv1.SchemeGroupVersion, &appsv1.Deployment{})
 	s.AddKnownTypes(v1alpha1.GroupVersion, &v1alpha1.ShipwrightBuild{})
 
+	logger := zap.New()
+
 	c := fake.NewFakeClientWithScheme(s, b)
-	r := &ShipwrightBuildReconciler{Client: c, Scheme: s, Logger: logr.Discard()}
+	r := &ShipwrightBuildReconciler{Client: c, Scheme: s, Logger: logger}
+
+	// creating targetNamespace on which Shipwright-Build will be deployed against, before the other
+	// tests takes place
+	if b.Spec.Namespace != "" {
+		t.Logf("Creating test namespace '%s'", b.Spec.Namespace)
+		t.Run("create-test-namespace", func(t *testing.T) {
+			err := c.Create(
+				context.TODO(),
+				&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: b.Spec.Namespace}},
+				&client.CreateOptions{},
+			)
+			g.Expect(err).To(o.BeNil())
+		})
+	}
 
 	// manifestival instance is setup as part of controller-=runtime's SetupWithManager, thus calling
 	// the setup before all other methods
 	t.Run("setupManifestival", func(t *testing.T) {
-		os.Setenv("KO_DATA_PATH", "../cmd/operator/kodata")
-		err := r.setupManifestival(logr.Discard())
+		err := r.setupManifestival(logger)
 		g.Expect(err).To(o.BeNil())
 	})
 
@@ -97,15 +118,6 @@ func TestShipwrightBuildReconciler_Reconcile(t *testing.T) {
 	}
 	c, r := bootstrapShipwrightBuildReconciler(t, b)
 
-	// creating targetNamespace on which Shipwright-Build will be deployed against, before the other
-	// tests takes place
-	err := c.Create(
-		context.TODO(),
-		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: targetNamespace}},
-		&client.CreateOptions{},
-	)
-	g.Expect(err).To(o.BeNil())
-
 	// rolling out all manifests on the desired namespace, making sure the deployment for Shipwright
 	// Build Controller is created accordingly
 	t.Run("rollout-manifests", func(t *testing.T) {
@@ -115,8 +127,7 @@ func TestShipwrightBuildReconciler_Reconcile(t *testing.T) {
 		g.Expect(err).To(o.BeNil())
 		g.Expect(res.Requeue).To(o.BeFalse())
 
-		deployment := &appsv1.Deployment{}
-		err = c.Get(ctx, deploymentName, deployment)
+		err = c.Get(ctx, deploymentName, &appsv1.Deployment{})
 		g.Expect(err).To(o.BeNil())
 	})
 
@@ -137,8 +148,7 @@ func TestShipwrightBuildReconciler_Reconcile(t *testing.T) {
 		g.Expect(err).To(o.BeNil())
 		g.Expect(res.Requeue).To(o.BeFalse())
 
-		deployment := &appsv1.Deployment{}
-		err = c.Get(ctx, deploymentName, deployment)
+		err = c.Get(ctx, deploymentName, &appsv1.Deployment{})
 		g.Expect(errors.IsNotFound(err)).To(o.BeTrue())
 	})
 }
